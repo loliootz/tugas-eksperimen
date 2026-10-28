@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tugas Atensi</title>
+<style>
+:root{--bg:#f2f7f7;--ink:#17303a;--mut:#5d7580;--acc:#1f7a8c;--accd:#165b69;--line:#cfe0e3;--card:#fff;--bad:#b3402a}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:17px/1.55 ui-rounded,"Segoe UI",system-ui,sans-serif;touch-action:manipulation}
+#app{max-width:560px;margin:0 auto;padding:28px 20px 40px}
+h1{font-size:1.6rem;line-height:1.25;margin:0 0 .6rem}
+p{margin:.5rem 0}
+.mut{color:var(--mut);font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:16px 0}
+button,.btn{font:inherit;border:0;border-radius:12px;background:var(--acc);color:#fff;padding:14px 20px;min-height:48px;cursor:pointer;width:100%;margin-top:14px}
+button:hover{background:var(--accd)}button:disabled{background:#9db8be;cursor:default}
+button.alt{background:#fff;color:var(--ink);border:1px solid var(--line)}button.alt:hover{background:#e8f1f2}
+:focus-visible{outline:3px solid #f0a500;outline-offset:2px}
+input[type=text]{font:inherit;width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;text-transform:uppercase;letter-spacing:.06em}
+label.cek{display:flex;gap:10px;align-items:flex-start;margin-top:12px}
+label.cek input{margin-top:6px;width:20px;height:20px}
+.err{color:var(--bad);margin-top:10px}
+.bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:22px}.bar i{display:block;height:100%;background:var(--acc)}
+.opsi{display:grid;gap:8px}
+.opsi button{margin:0;background:#fff;color:var(--ink);border:1px solid var(--line);text-align:left}
+.opsi button:hover,.opsi button:active{background:var(--acc);color:#fff}
+.soal{font-size:1.2rem;margin:10px 0 20px}
+#stage{height:42vh;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#stim{font-size:3.2rem;letter-spacing:.12em;white-space:nowrap}
+#fb{height:1.6em;color:var(--mut)}
+.tomb{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tomb button{height:84px;font-size:1.3rem;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+// ====== PENGATURAN ======
+const SCRIPT_URL = "GANTI_DENGAN_URL_WEB_APP"; // tempel URL Web App Google Apps Script di sini
+const N_TRIAL = 160, N_LATIHAN = 8, MAKS_MS = 1500;
+const DEMO = SCRIPT_URL.startsWith("GANTI");
+const POST = new URLSearchParams(location.search).get("tahap") === "post";
+
+const ITEMS = [
+ "Saya langsung merespons ketika guru memanggil nama saya.",
+ "Saya mengarahkan pandangan ke guru saat guru memberi instruksi.",
+ "Saya berhenti mengobrol atau bermain ketika guru memberi arahan.",
+ "Saya mengerjakan tugas dari awal sampai selesai.",
+ "Saya tetap fokus pada tugas selama kegiatan belajar berlangsung.",
+ "Saya mudah meninggalkan tugas sebelum selesai.",
+ "Saya tetap mengerjakan tugas meskipun teman di sekitar saya bercanda atau mengobrol.",
+ "Saya tetap memperhatikan guru meskipun ada suara lain di kelas.",
+ "Setelah terganggu, saya butuh waktu lama untuk kembali fokus.",
+ "Saya langsung berhenti dan berpindah ke kegiatan lain saat guru mengarahkan.",
+ "Saya segera memulai tugas baru setelah menyelesaikan tugas sebelumnya.",
+ "Saya sulit berpindah fokus ketika kegiatan atau mata pelajaran berganti.",
+ "Saya bisa menjawab pertanyaan guru sambil tetap mengerjakan tugas.",
+ "Saya bisa mendengarkan penjelasan tambahan sambil tetap mengerjakan tugas utama.",
+ "Saya kewalahan kalau harus mendengarkan dan mengerjakan sesuatu sekaligus."];
+const BALIK = [5, 8, 11, 14];
+const KOMP = ["focused", "sustained", "selective", "alternating", "divided"];
+const PILIHAN = ["Tidak pernah", "Jarang", "Kadang-kadang", "Sering", "Selalu"];
+
+const S = {kode: "", jawab: [], fl: null, trials: []};
+const $ = id => document.getElementById(id);
+const app = $("app");
+const tampil = h => { app.innerHTML = h; window.scrollTo(0, 0); };
+const tunggu = ms => new Promise(r => setTimeout(r, ms));
+
+async function api(body) {
+  if (DEMO) {
+    console.log("DEMO", body);
+    return {ok: true, kelompok: Math.random() < .5 ? "eksperimen" : "kontrol"};
+  }
+  const r = await fetch(SCRIPT_URL, {method: "POST", body: JSON.stringify(body)});
+  return r.json();
+}
+
+// ====== 1. PERSETUJUAN ======
+function awal() {
+  tampil(`<h1>${POST ? "Tugas hari kedua" : "Latihan fokus"}</h1>
+  <p>${POST ? "Kamu akan mengerjakan tugas panah lagi, lalu mengisi pertanyaan singkat." : "Kamu akan mengisi pertanyaan singkat, mengerjakan tugas panah, lalu bermain beberapa game."}</p>
+  <div class="card"><p><b>Tentang kegiatan ini</b></p>
+  <p class="mut">Kegiatan ini bagian dari penelitian tentang atensi (perhatian) siswa. Kamu tidak perlu menulis nama, cukup memakai kode. Jawabanmu hanya dipakai untuk penelitian dan tidak memengaruhi nilai. Kamu boleh berhenti kapan saja.</p>
+  <label class="cek"><input type="checkbox" id="setuju"><span>Saya mengerti dan bersedia ikut.</span></label></div>
+  <label for="kode"><b>Kode pesertamu</b></label>
+  <input type="text" id="kode" maxlength="12" autocomplete="off" placeholder="contoh: P001">
+  <div class="err" id="err"></div>
+  <button id="go">Mulai</button>`);
+  $("go").onclick = async () => {
+    const k = $("kode").value.trim().toUpperCase();
+    if (!$("setuju").checked) return $("err").textContent = "Centang dulu kotak persetujuan.";
+    if (!/^[A-Z0-9_-]{3,12}$/.test(k)) return $("err").textContent = "Kode berisi 3-12 huruf atau angka, tanpa spasi.";
+    S.kode = k;
+    if (POST) {
+      $("go").disabled = true; $("go").textContent = "Memeriksa kode...";
+      try {
+        const r = await api({action: "lookup", kode: k});
+        if (!r.ok) { $("go").disabled = false; $("go").textContent = "Mulai"; return $("err").textContent = "Kode tidak ditemukan. Cek lagi kodenya."; }
+      } catch (e) { $("go").disabled = false; $("go").textContent = "Mulai"; return $("err").textContent = "Koneksi bermasalah. Coba lagi."; }
+      return petunjukFlanker();
+    }
+    selfReport(0, () => petunjukFlanker());
+  };
+}
+
+// ====== 2. SELF-REPORT (satu butir per layar) ======
+function selfReport(i, lanjut) {
+  if (i === 0) S.jawab = [];
+  if (i >= ITEMS.length) return lanjut();
+  tampil(`<div class="bar"><i style="width:${(i / ITEMS.length) * 100}%"></i></div>
+  <p class="mut">Pertanyaan ${i + 1} dari ${ITEMS.length}. Jawab sesuai kebiasaanmu saat pelajaran di kelas.</p>
+  <p class="soal">${ITEMS[i]}</p>
+  <div class="opsi">${PILIHAN.map((t, n) => `<button data-n="${n + 1}">${t}</button>`).join("")}</div>`);
+  app.querySelectorAll(".opsi button").forEach(b => b.onclick = () => { S.jawab[i] = +b.dataset.n; selfReport(i + 1, lanjut); });
+}
+function skorSR() {
+  const v = S.jawab.map((x, i) => BALIK.includes(i) ? 6 - x : x);
+  const o = {total: v.reduce((a, b) => a + b, 0)};
+  KOMP.forEach((k, n) => o[k] = v.slice(n * 3, n * 3 + 3).reduce((a, b) => a + b, 0));
+  return o;
+}
+
+// ====== 3. FLANKER ======
+function petunjukFlanker() {
+  tampil(`<h1>Tugas panah</h1>
+  <p>Kamu akan melihat deretan lima panah. <b>Lihat panah yang di tengah saja</b>, lalu tekan tombol sesuai arahnya.</p>
+  <div class="card" style="text-align:center;font-size:2rem;letter-spacing:.12em">←←→←←<div class="mut" style="font-size:.95rem;letter-spacing:0">Panah tengah ke kanan, jadi tekan <b>Kanan</b>.</div></div>
+  <p>Kerjakan secepat dan setepat mungkin. Di laptop, kamu juga bisa memakai tombol panah kiri dan kanan.</p>
+  <p class="mut">Mulai dengan latihan singkat. Hasil latihan tidak dihitung.</p>
+  <button id="go">Mulai latihan</button>`);
+  $("go").onclick = async () => { await jalankan(acak(buatTrial(N_LATIHAN)), true); tampil(`<h1>Latihan selesai</h1><p>Sekarang tes yang sebenarnya. Sekitar ${Math.round(N_TRIAL * 1.3 / 60)} menit. Tetap fokus ya.</p><button id="go2">Mulai tes</button>`); $("go2").onclick = tesUtama; };
+}
+function buatTrial(n) { const t = []; for (let i = 0; i < n; i++) t.push({con: i % 2 === 0, dir: ((i >> 1) % 2 === 0) ? "L" : "R"}); return t; }
+function acak(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function panah(t) {
+  const c = t.dir === "L" ? "←" : "→", o = t.dir === "L" ? "→" : "←";
+  return t.con ? c.repeat(5) : o + o + c + o + o;
+}
+let aktif = null;
+const resp = d => { if (aktif) aktif(d); };
+addEventListener("keydown", e => { if (e.key === "ArrowLeft") resp("L"); if (e.key === "ArrowRight") resp("R"); });
+
+function satuTrial(t, umpan) {
+  return new Promise(async sel => {
+    $("stim").textContent = "+"; await tunggu(500);
+    $("stim").textContent = panah(t);
+    const t0 = performance.now();
+    let to;
+    const selesai = async d => {
+      aktif = null; clearTimeout(to);
+      const rt = d ? performance.now() - t0 : null, benar = d === t.dir;
+      $("stim").textContent = "";
+      if (umpan) { $("fb").textContent = d === null ? "Terlalu lambat" : benar ? "Benar" : "Salah"; await tunggu(700); $("fb").textContent = ""; }
+      await tunggu(300);
+      sel({con: t.con, dir: t.dir, resp: d, rt: rt && Math.round(rt), benar});
+    };
+    aktif = selesai; to = setTimeout(() => aktif && aktif(null), MAKS_MS);
+  });
+}
+async function jalankan(daftar, umpan) {
+  tampil(`<div id="stage"><div id="stim"></div><div id="fb"></div></div>
+  <div class="tomb"><button onclick="resp('L')">← Kiri</button><button onclick="resp('R')">Kanan →</button></div>`);
+  const hasil = [];
+  for (const t of daftar) hasil.push(await satuTrial(t, umpan));
+  return hasil;
+}
+const rata = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null;
+async function tesUtama() {
+  S.trials = await jalankan(acak(buatTrial(N_TRIAL)), false);
+  const hit = c => { const g = S.trials.filter(x => x.con === c); const bn = g.filter(x => x.benar);
+    return {rt: rata(bn.filter(x => x.rt >= 150).map(x => x.rt)), acc: +(bn.length / g.length).toFixed(3)}; };
+  const c = hit(true), i = hit(false);
+  S.fl = {rtCon: c.rt, rtInc: i.rt, interferensi: c.rt && i.rt ? i.rt - c.rt : null, accCon: c.acc, accInc: i.acc, n: S.trials.length};
+  if (POST) selfReport(0, kirim); else kirim();
+}
+
+// ====== 4. KIRIM DATA ======
+async function kirim() {
+  tampil(`<h1>Menyimpan jawabanmu...</h1><p class="mut">Jangan tutup halaman ini.</p>`);
+  try {
+    let kel = "";
+    if (!POST) { const a = await api({action: "assign", kode: S.kode}); if (!a.ok) throw 0; kel = a.kelompok; }
+    const r = await api({action: "save", kode: S.kode, tahap: POST ? "post" : "pre", sr: S.jawab, srSkor: skorSR(), fl: S.fl,
+      perangkat: navigator.userAgent.slice(0, 90) + " | " + innerWidth + "x" + innerHeight, trials: JSON.stringify(S.trials)});
+    if (!r.ok) throw 0;
+    POST ? selesai() : perlakuan(kel);
+  } catch (e) {
+    tampil(`<h1>Koneksi bermasalah</h1><p>Jawabanmu belum tersimpan. Pastikan internet menyala, lalu coba lagi. Jangan tutup halaman ini.</p><button id="ulang">Coba lagi</button>`);
+    $("ulang").onclick = kirim;
+  }
+}
+function selesai() { tampil(`<h1>Selesai, terima kasih!</h1><p>Jawabanmu sudah tersimpan. Kamu boleh menutup halaman ini.</p>`); }
+
+// ====== 5. PERLAKUAN (diisi di tahap 2) ======
+function perlakuan(kelompok) {
+  tampil(`<h1>Bagian berikutnya</h1>
+  <p>Game akan dipasang di sini pada tahap 2.</p>
+  ${DEMO ? `<p class="mut">Mode uji coba. Kelompok hasil pengacakan: <b>${kelompok}</b></p>` : ""}`);
+}
+
+awal();
+</script>
+</body>
+</html>
